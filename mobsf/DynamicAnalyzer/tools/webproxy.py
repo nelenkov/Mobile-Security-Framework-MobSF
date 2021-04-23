@@ -8,28 +8,32 @@ import requests
 
 from mobsf.MobSF.utils import is_file_exists, upstream_proxy
 
+from mobsf.MobSF import settings
+
 logger = logging.getLogger(__name__)
 
 
 def stop_httptools(url):
     """Kill httptools."""
     # Invoke HTTPtools UI Kill Request
+    logger.debug("httptools URL: {}".format(url))
     try:
+        url = f'http://{settings.PROXY_IP}:{str(settings.PROXY_PORT)}'
         requests.get(f'{url}/kill', timeout=5)
         logger.info('Killing httptools UI')
-    except Exception:
-        pass
+    except Exception as ex:
+        logger.error(f'Error stopping httptools UI: {ex}')
 
     # Invoke HTTPtools Proxy Kill Request
     try:
         http_proxy = url.replace('https://', 'http://')
         headers = {'httptools': 'kill'}
-        url = 'http://127.0.0.1'
+        url = f'http://{settings.PROXY_IP}:{str(settings.PROXY_PORT)}'
         requests.get(url, headers=headers, proxies={
-                     'http': http_proxy})
+                     'http': http_proxy}, timeout=5)
         logger.info('Killing httptools Proxy')
-    except Exception:
-        pass
+    except Exception as ex:
+        logger.error(f'Error stopping httptools proxy: {ex}')
 
 
 def start_proxy(port, project):

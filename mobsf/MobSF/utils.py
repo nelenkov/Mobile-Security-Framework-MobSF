@@ -551,7 +551,17 @@ def get_http_tools_url(req):
     """Get httptools URL from request."""
     scheme = req.scheme
     ip = req.get_host().split(':')[0]
-    return f'{scheme}://{ip}:{str(settings.PROXY_PORT)}'
+    logger.debug("IP: {}".format(ip))
+    logger.debug("{}".format(req.headers))
+    logger.debug("Host: {}".format(req.get_host()))
+    #for k,v in req.headers.items():
+    #    print("%s: %s" % (k, v)
+    xff = req.headers['X-Forwarded-For'].split(',')[1].strip()
+    logger.debug("XFF: {}".format(xff))
+    #r = f'{scheme}://{xff}:{str(settings.PROXY_PORT)}'
+    url = f'{scheme}://{ip}:{str(settings.PROXY_PORT)}'
+    logger.debug("r: {}".format(url))
+    return url
 
 
 def clean_filename(filename, replace=' '):

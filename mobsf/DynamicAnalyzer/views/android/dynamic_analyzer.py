@@ -216,7 +216,23 @@ def httptools_start(request):
             project = request.GET['project']
         else:
             project = ''
-        url = f'{httptools_url}/dashboard/{project}'
+
+        scheme = request.scheme
+        url = f'{scheme}://{httptools_url}/dashboard/{project}'
+
+        logger.debug("headers: {}".format(request.headers))
+        if 'X-Forwarded-For' in request.headers:
+            xff = request.headers['X-Forwarded-For']
+            logger.debug("XFF: {}".format(xff))
+            if len(xff.split(',')) > 1:
+                # behind one or more reverse proxies
+                #host = request.get_host()
+                host = request.headers['X-Forwarded-Host']
+                logger.debug("host: {}".format(host))
+                redirect_host = host.split(':')[0]
+                url = f'{scheme}://{redirect_host}/dashboard/{project}'
+
+        logger.debug("redirect URL: [{}]".format(url))
         return HttpResponseRedirect(url)  # lgtm [py/reflective-xss]
     except Exception:
         logger.exception('Starting httptools Web UI')

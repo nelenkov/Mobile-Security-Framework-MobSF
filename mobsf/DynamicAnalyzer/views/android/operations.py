@@ -35,7 +35,8 @@ def get_package_name(checksum):
         static_android_db = StaticAnalyzerAndroid.objects.get(
             MD5=checksum)
         return static_android_db.PACKAGE_NAME
-    except Exception:
+    except Exception as ex:
+        logger.warn(ex)
         pkg_file = Path(settings.DWD_DIR) / 'packages.json'
         if not pkg_file.exists():
             return None

@@ -84,6 +84,8 @@ class Frida:
 
     def frida_response(self, message, data):
         """Function to handle frida responses."""
+        logger.debug(f'frida_resonse: {message}')
+
         if 'payload' in message:
             msg = message['payload']
             api_mon = 'MobSF-API-Monitor: '
@@ -103,6 +105,8 @@ class Frida:
 
     def connect(self):
         """Connect to Frida Server."""
+
+        logger.debug('Conecting to Frida')
         session = None
         device = None
         try:
@@ -113,6 +117,7 @@ class Frida:
             pid = device.spawn([self.package])
             logger.info('Spawning %s', self.package)
             session = device.attach(pid)
+            logger.debug(f'Frida session: {session}')
             time.sleep(2)
         except frida.ServerNotRunningError:
             logger.warning('Frida server is not running')
@@ -121,8 +126,9 @@ class Frida:
             logger.error('Timed out while waiting for device to appear')
         except (frida.ProcessNotFoundError,
                 frida.TransportError,
-                frida.InvalidOperationError):
-            pass
+                frida.InvalidOperationError) as ex:
+            logger.exception(ex)
+            #pass
         except Exception:
             logger.exception('Error Connecting to Frida')
         try:
@@ -136,8 +142,9 @@ class Frida:
                 session.detach()
         except (frida.ProcessNotFoundError,
                 frida.TransportError,
-                frida.InvalidOperationError):
-            pass
+                frida.InvalidOperationError) as ex:
+            #pass
+            logger.exception(ex)
         except Exception:
             logger.exception('Error Connecting to Frida')
 
