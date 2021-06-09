@@ -40,11 +40,14 @@ class Frida:
         self.apk_dir = os.path.join(settings.UPLD_DIR, self.hash + '/')
         self.api_mon = os.path.join(self.apk_dir, 'mobsf_api_monitor.txt')
         self.frida_log = os.path.join(self.apk_dir, 'mobsf_frida_out.txt')
+        self.deps = os.path.join(self.apk_dir, 'mobsf_app_deps.txt')
 
     def get_default_scripts(self):
         """Get default Frida Scripts."""
         combined_script = []
         header = []
+        if not self.defaults:
+            return header
         def_scripts = os.path.join(self.frida_dir, 'default')
         files = glob.glob(def_scripts + '**/*.js', recursive=True)
         for item in files:
@@ -58,9 +61,14 @@ class Frida:
     def get_auxiliary(self):
         """Get auxiliary hooks."""
         scripts = []
+        if not self.auxiliary:
+            return scripts
         for itm in self.auxiliary:
             if itm == 'enum_class':
                 scripts.append(get_loaded_classes())
+            elif itm == 'get_dependencies':
+                scripts.append(get_loaded_classes().replace(
+                    '[AUXILIARY] ', '[RUNTIME-DEPS] '))
             elif itm == 'string_catch':
                 scripts.append(string_catch())
             elif itm == 'string_compare':
@@ -75,9 +83,12 @@ class Frida:
 
     def get_script(self):
         """Get final script."""
-        scripts = self.get_default_scripts()
+        if not self.code:
+            self.code = ''
+        # Load custom code first
+        scripts = [self.code]
+        scripts.extend(self.get_default_scripts())
         scripts.extend(self.get_auxiliary())
-        scripts.extend([self.code])
         final = 'setTimeout(function() {{ {} }}, 0)'.format(
             '\n'.join(scripts))
         return final
@@ -90,10 +101,15 @@ class Frida:
             msg = message['payload']
             api_mon = 'MobSF-API-Monitor: '
             aux = '[AUXILIARY] '
+            deps = '[RUNTIME-DEPS] '
             if not isinstance(msg, str):
                 msg = str(msg)
             if msg.startswith(api_mon):
                 self.write_log(self.api_mon, msg.replace(api_mon, ''))
+            elif msg.startswith(deps):
+                info = msg.replace(deps, '') + '\n'
+                self.write_log(self.deps, info)
+                self.write_log(self.frida_log, info)
             elif msg.startswith(aux):
                 self.write_log(self.frida_log,
                                msg.replace(aux, '[*] ') + '\n')

@@ -139,10 +139,11 @@ Java.perform(function() {
     /*** HttpsURLConnection ***/
     try {
         var HttpsURLConnection = Java.use('javax.net.ssl.HttpsURLConnection');
+        /*
         HttpsURLConnection.setDefaultHostnameVerifier.implementation = function(hostnameVerifier) {
             send('[SSL Pinning Bypass] HttpsURLConnection.setDefaultHostnameVerifier bypassed');
             return null;
-        };
+        };*/
         HttpsURLConnection.setSSLSocketFactory.implementation = function(SSLSocketFactory) {
             send('[SSL Pinning Bypass] HttpsURLConnection.setSSLSocketFactory bypassed');
             return null;
@@ -185,7 +186,7 @@ Java.perform(function() {
             var SSLContext_init = SSLContext.init.overload('[Ljavax.net.ssl.KeyManager;', '[Ljavax.net.ssl.TrustManager;', 'java.security.SecureRandom');
             SSLContext_init.implementation = function(keyManager, trustManager, secureRandom) {
                 SSLContext_init.call(this, null, TrustManagers, null);
-                send('[SSL Pinning Bypass] SSLContext.init() bypass');
+                // send('[SSL Pinning Bypass] SSLContext.init() bypass');
             };
         } catch (e) {
             send('[SSL Pinning Bypass] SSLContext.init() not found');
@@ -240,4 +241,17 @@ Java.perform(function() {
     } catch (err) {
         send('[SSL Pinning Bypass] Cronet not found');
     }
+    /* Certificate Transparency Bypass
+       Ajin Abraham - opensecurity.in */
+    try{
+        Java.perform(function() {
+            Java.use('com.babylon.certificatetransparency.CTInterceptorBuilder').includeHost.overload('java.lang.String').implementation = function(host) {
+                send('[SSL Pinning Bypass] Bypassing Certificate Transparency check');
+                return this.includeHost('nonexistent.domain');
+            };
+        });
+    } catch (err) {
+        send('[SSL Pinning Bypass] certificatetransparency.CTInterceptorBuilder not found');
+    }
+
 }, 0);

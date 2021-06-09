@@ -109,6 +109,19 @@ def api_root_ca(request):
     return make_api_response(resp, 500)
 
 
+@request_method(['POST'])
+@csrf_exempt
+def api_global_proxy(request):
+    """POST - MobSF Global Proxy API."""
+    if 'action' not in request.POST:
+        return make_api_response(
+            {'error': 'Missing Parameters'}, 422)
+    resp = operations.global_proxy(request, True)
+    if resp['status'] == 'ok':
+        return make_api_response(resp, 200)
+    return make_api_response(resp, 500)
+
+
 # Android Dynamic Tests APIs
 @request_method(['POST'])
 @csrf_exempt
@@ -119,6 +132,19 @@ def api_api_tester(request):
         return make_api_response(
             {'error': 'Missing Parameters'}, 422)
     resp = tests_common.activity_tester(request, True)
+    if resp['status'] == 'ok':
+        return make_api_response(resp, 200)
+    return make_api_response(resp, 500)
+
+
+@request_method(['POST'])
+@csrf_exempt
+def api_tls_tester(request):
+    """POST - TLS/SSL Security Tester."""
+    if 'hash' not in request.POST:
+        return make_api_response(
+            {'error': 'Missing Parameters'}, 422)
+    resp = tests_common.tls_tests(request, True)
     if resp['status'] == 'ok':
         return make_api_response(resp, 200)
     return make_api_response(resp, 500)
@@ -203,6 +229,19 @@ def api_get_script(request):
         return make_api_response(
             {'error': 'Missing Parameters'}, 422)
     resp = tests_frida.get_script(request, True)
+    if resp['status'] == 'ok':
+        return make_api_response(resp, 200)
+    return make_api_response(resp, 500)
+
+
+@request_method(['POST'])
+@csrf_exempt
+def api_get_dependencies(request):
+    """POST - Frida Get Runtime Dependencies."""
+    if 'hash' not in request.POST:
+        return make_api_response(
+            {'error': 'Missing Parameters'}, 422)
+    resp = tests_frida.get_runtime_dependencies(request, True)
     if resp['status'] == 'ok':
         return make_api_response(resp, 200)
     return make_api_response(resp, 500)

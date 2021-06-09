@@ -18,6 +18,7 @@ from frida import __version__ as frida_version
 
 from mobsf.DynamicAnalyzer.tools.webproxy import (
     get_ca_file,
+    get_http_tools_url,
     start_proxy,
     stop_httptools,
 )
@@ -27,7 +28,6 @@ from mobsf.DynamicAnalyzer.views.android import (
 from mobsf.MobSF.utils import (
     get_adb,
     get_device,
-    get_http_tools_url,
     get_proxy_ip,
     is_file_exists,
     python_list,
@@ -61,10 +61,10 @@ class Environment:
             return False
         return True
 
-    def run_subprocess_verify_output(self, command):
+    def run_subprocess_verify_output(self, cmd):
         """Run subprocess and verify execution."""
-        out = subprocess.check_output(command)
-        self.wait(2)
+        out = subprocess.check_output(cmd)  # lgtm [py/command-line-injection]
+        self.wait(2)                        # adb shell is allowed
         return self.check_connect_error(out)
 
     def connect_n_mount(self):
@@ -152,7 +152,7 @@ class Environment:
         args += cmd_list
         try:
             result = subprocess.check_output(
-                args,
+                args,  # lgtm [py/command-line-injection]
                 stderr=subprocess.STDOUT)
             return result
         except Exception:
@@ -378,11 +378,14 @@ class Environment:
                 or any(char.isdigit() for char in ver)):
             logger.info('Found Genymotion x86 Android VM')
             return 'genymotion'
+        elif b'corellium' in out:
+            logger.info('Found Corellium ARM Android VM')
+            return 'corellium'
         else:
             logger.warning(
                 'Unable to identify Dynamic Analysis environment. '
                 'Official support is available only for Android '
-                'Emulator and Genymotion VM')
+                'Emulator, Corellium, and Genymotion')
             return ''
 
     def get_android_version(self):
@@ -402,6 +405,13 @@ class Environment:
             'getprop',
             'ro.product.cpu.abi'], True)
         return out.decode('utf-8').rstrip()
+
+    def get_android_sdk(self):
+        """Get Android API version."""
+        out = self.adb_command([
+            'getprop',
+            'ro.build.version.sdk'], True)
+        return out.decode('utf-8').strip()
 
     def get_device_packages(self):
         """Get all packages from device."""
@@ -425,6 +435,9 @@ class Environment:
                 '-b',
                 apk], True)
             md5 = out1.decode('utf-8').strip()
+            if '.apk' in md5:
+                # -b not respected in Android 5.0
+                md5 = md5.split()[0]
             device_packages[md5] = (pkg, apk)
         return device_packages
 
@@ -458,14 +471,11 @@ class Environment:
         """Check if /system is writable."""
         try:
             try:
-                out = self.adb_command([
-                    'getprop',
-                    'ro.build.version.sdk'], True)
-                if out:
-                    api = int(out.decode('utf-8').strip())
+                api = self.get_android_sdk()
+                if api:
                     logger.info('Android API Level '
                                 'identified as %s', api)
-                    if api > ANDROID_API_SUPPORTED:
+                    if int(api) > ANDROID_API_SUPPORTED:
                         logger.error('This API Level is not supported'
                                      ' for Dynamic Analysis.')
                         return False
@@ -504,6 +514,15 @@ class Environment:
         logger.info('Activity screenshot captured')
         logger.info('Stopping app')
         self.adb_command(['am', 'force-stop', package], True)
+
+    def run_app(self, package):
+        """Launch an app with package name."""
+        self.adb_command(['monkey',
+                          '-p',
+                          package,
+                          '-c',
+                          'android.intent.category.LAUNCHER',
+                          '1'], True)
 
     def is_mobsfyied(self, android_version):
         """Check is Device is MobSFyed."""
@@ -598,7 +617,7 @@ class Environment:
                                   'JustTrustMe.apk')
         rootcloak = os.path.join(self.tools_dir,
                                  xposed_modules,
-                                 'RootCloak.apk')
+                                 'com.devadvance.rootcloak2_v18_c43b61.apk')
         proxyon = os.path.join(self.tools_dir,
                                xposed_modules,
                                'mobi.acpm.proxyon_v1_419b04.apk')

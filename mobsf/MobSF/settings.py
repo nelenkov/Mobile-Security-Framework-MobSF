@@ -48,7 +48,7 @@ try:
     if USE_HOME:
         USER_CONFIG = os.path.join(MobSF_HOME, 'config.py')
         sett = imp.load_source('user_settings', USER_CONFIG)
-        locals().update(
+        locals().update(  # lgtm [py/modification-of-locals]
             {k: v for k, v in list(sett.__dict__.items())
                 if not k.startswith('__')})
         CONFIG_HOME = True
@@ -114,6 +114,9 @@ GITHUB_URL = ('https://raw.githubusercontent.com/'
 FRIDA_SERVER = 'https://api.github.com/repos/frida/frida/releases/tags/'
 GOOGLE = 'https://www.google.com'
 BAIDU = 'https://www.baidu.com/'
+APKPURE = 'https://m.apkpure.com/android/{}/download?from=details'
+APKTADA = 'https://apktada.com/download-apk/'
+APKPLZ = 'https://apkplz.net/download-app/'
 
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # ============DJANGO SETTINGS =================

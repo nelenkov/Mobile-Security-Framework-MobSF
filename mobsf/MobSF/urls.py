@@ -51,13 +51,16 @@ urlpatterns = [
     url(r'^api/v1/android/mobsfy$', api_dz.api_mobsfy),
     url(r'^api/v1/android/adb_command$', api_dz.api_adb_execute),
     url(r'^api/v1/android/root_ca$', api_dz.api_root_ca),
+    url(r'^api/v1/android/global_proxy$', api_dz.api_global_proxy),
     url(r'^api/v1/android/activity$', api_dz.api_api_tester),
+    url(r'^api/v1/android/tls_tests$', api_dz.api_tls_tester),
     # Frida
     url(r'^api/v1/frida/instrument$', api_dz.api_instrument),
     url(r'^api/v1/frida/api_monitor$', api_dz.api_api_monitor),
     url(r'^api/v1/frida/logs$', api_dz.api_frida_logs),
     url(r'^api/v1/frida/list_scripts$', api_dz.api_list_frida_scripts),
     url(r'^api/v1/frida/get_script$', api_dz.api_get_script),
+    url(r'^api/v1/frida/get_dependencies$', api_dz.api_get_dependencies),
 ]
 if settings.API_ONLY == '0':
     urlpatterns.extend([
@@ -65,6 +68,7 @@ if settings.API_ONLY == '0':
         url(r'^$', home.index, name='home'),
         url(r'^upload/$', home.Upload.as_view),
         url(r'^download/', home.download),
+        url(r'^download_scan/', home.download_apk),
         url(r'^about$', home.about, name='about'),
         url(r'^api_docs$', home.api_docs, name='api_docs'),
         url(r'^recent_scans/$', home.recent_scans, name='recent'),
@@ -109,6 +113,7 @@ if settings.API_ONLY == '0':
             dz.trigger_static_analysis,
             name='static_scan'),
         # Android Operations
+        url(r'^run_apk/$', operations.run_apk),
         url(r'^mobsfy/$', operations.mobsfy),
         url(r'^screenshot/$', operations.take_screenshot),
         url(r'^execute_adb/$', operations.execute_adb),
@@ -116,16 +121,19 @@ if settings.API_ONLY == '0':
         url(r'^touch_events/$', operations.touch),
         url(r'^get_component/$', operations.get_component),
         url(r'^mobsf_ca/$', operations.mobsf_ca),
+        url(r'^global_proxy/$', operations.global_proxy),
         # Dynamic Tests
         url(r'^activity_tester/$', tests_common.activity_tester),
         url(r'^download_data/$', tests_common.download_data),
         url(r'^collect_logs/$', tests_common.collect_logs),
+        url(r'^tls_tests/$', tests_common.tls_tests),
         # Frida
         url(r'^frida_instrument/$', tests_frida.instrument),
         url(r'^live_api/$', tests_frida.live_api),
         url(r'^frida_logs/$', tests_frida.frida_logs),
         url(r'^list_frida_scripts/$', tests_frida.list_frida_scripts),
         url(r'^get_script/$', tests_frida.get_script),
+        url(r'^get_dependencies/$', tests_frida.get_runtime_dependencies),
         # Report
         url(r'^dynamic_report/(?P<checksum>[0-9a-f]{32})$',
             report.view_report),

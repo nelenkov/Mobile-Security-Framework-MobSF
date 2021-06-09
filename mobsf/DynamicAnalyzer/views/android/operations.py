@@ -17,6 +17,7 @@ from mobsf.DynamicAnalyzer.views.android.environment import (
     Environment,
 )
 from mobsf.MobSF.utils import (
+    cmd_injection_check,
     get_adb,
     get_device,
     is_md5,
@@ -51,8 +52,9 @@ def send_response(data, api=False):
     """Return JSON Response."""
     if api:
         return data
-    return HttpResponse(json.dumps(data),
-                        content_type='application/json')
+    return HttpResponse(
+        json.dumps(data),  # lgtm [py/stack-trace-exposure]
+        content_type='application/json')
 
 
 def is_attack_pattern(user_input):
@@ -62,26 +64,6 @@ def is_attack_pattern(user_input):
     if stat:
         logger.error('Possible RCE attack detected')
     return stat
-
-
-def strict_package_check(user_input):
-    """Strict package name check."""
-    pat = re.compile(r'^\w+\.*[\w\.\$]+$')
-    resp = re.match(pat, user_input)
-    if not resp:
-        logger.error('Invalid package/class name')
-    return resp
-
-
-def is_path_traversal(user_input):
-    """Check for path traversal."""
-    if (('../' in user_input)
-        or ('%2e%2e' in user_input)
-        or ('..' in user_input)
-            or ('%252e' in user_input)):
-        logger.error('Path traversal attack detected')
-        return True
-    return False
 
 
 def invalid_params(api=False):
@@ -101,16 +83,22 @@ def mobsfy(request, api=False):
     """Configure Instance for Dynamic Analysis."""
     logger.info('MobSFying Android instance')
     data = {}
+    msg = 'Connection failed'
     try:
         identifier = request.POST['identifier']
+        if cmd_injection_check(identifier):
+            # Additional Check, not required
+            data = {
+                'status': 'failed',
+                'message': 'Command Injection Detected',
+            }
+            return send_response(data, api)
         create_env = Environment(identifier)
         if not create_env.connect_n_mount():
-            msg = 'Connection failed'
             data = {'status': 'failed', 'message': msg}
             return send_response(data, api)
         version = create_env.mobsfy_init()
         if not version:
-            msg = 'Connection failed'
             data = {'status': 'failed', 'message': msg}
             return send_response(data, api)
         else:
@@ -133,9 +121,10 @@ def execute_adb(request, api=False):
                 '-s',
                 get_device()]
         try:
-            proc = subprocess.Popen(args + cmd.split(' '),
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE)
+            proc = subprocess.Popen(
+                args + cmd.split(' '),  # lgtm [py/command-line-injection]
+                stdout=subprocess.PIPE,  # Expected, cmd execute inside VM/AVD
+                stderr=subprocess.PIPE)
             stdout, stderr = proc.communicate()
         except Exception:
             logger.exception('Executing ADB Commands')
@@ -164,6 +153,28 @@ def get_component(request):
         data = {'status': 'ok', 'message': comp}
     except Exception as exp:
         logger.exception('Getting Android Component')
+        data = {'status': 'failed', 'message': str(exp)}
+    return send_response(data)
+
+# AJAX
+
+
+@require_http_methods(['POST'])
+def run_apk(request):
+    """Run Android APK."""
+    data = {}
+    try:
+        env = Environment()
+        md5_hash = request.POST['hash']
+        if not is_md5(md5_hash):
+            return invalid_params()
+        pkg = get_package_name(md5_hash)
+        if not pkg:
+            return invalid_params()
+        env.run_app(pkg)
+        data = {'status': 'ok'}
+    except Exception as exp:
+        logger.exception('Running the App')
         data = {'status': 'failed', 'message': str(exp)}
     return send_response(data)
 
@@ -213,7 +224,6 @@ def screen_cast(request):
         logger.exception('Screen streaming')
         data = {'status': 'failed', 'message': str(exp)}
     return send_response(data)
-
 # AJAX
 
 
@@ -241,8 +251,6 @@ def touch(request):
         logger.exception('Sending Touch Events')
         data = {'status': 'failed', 'message': str(exp)}
     return send_response(data)
-
-
 # AJAX
 
 
@@ -264,5 +272,29 @@ def mobsf_ca(request, api=False):
                     'message': 'Action not supported'}
     except Exception as exp:
         logger.exception('MobSF RootCA Handler')
+        data = {'status': 'failed', 'message': str(exp)}
+    return send_response(data, api)
+# AJAX
+
+
+@require_http_methods(['POST'])
+def global_proxy(request, api=False):
+    """Set/unset global proxy."""
+    data = {}
+    try:
+        env = Environment()
+        version = env.get_android_version()
+        action = request.POST['action']
+        if action == 'set':
+            env.set_global_proxy(version)
+            data = {'status': 'ok', 'message': 'set'}
+        elif action == 'unset':
+            env.unset_global_proxy()
+            data = {'status': 'ok', 'message': 'unset'}
+        else:
+            data = {'status': 'failed',
+                    'message': 'Action not supported'}
+    except Exception as exp:
+        logger.exception('MobSF Global Proxy')
         data = {'status': 'failed', 'message': str(exp)}
     return send_response(data, api)

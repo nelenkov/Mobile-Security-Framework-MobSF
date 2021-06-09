@@ -10,6 +10,7 @@ from django.shortcuts import render
 from django.template.defaulttags import register
 from django.utils.html import escape
 
+import mobsf.MalwareAnalyzer.views.Trackers as Trackers
 from mobsf.DynamicAnalyzer.views.android.analysis import (
     generate_download,
     get_screenshots,
@@ -17,17 +18,18 @@ from mobsf.DynamicAnalyzer.views.android.analysis import (
 )
 from mobsf.DynamicAnalyzer.views.android.operations import (
     get_package_name,
-    is_path_traversal,
 )
 from mobsf.DynamicAnalyzer.views.android.tests_xposed import (
     droidmon_api_analysis,
 )
 from mobsf.DynamicAnalyzer.views.android.tests_frida import (
     apimon_analysis,
+    dependency_analysis,
 )
 from mobsf.MobSF.utils import (
     is_file_exists,
     is_md5,
+    is_path_traversal,
     is_safe_path,
     print_n_send_error_response,
     read_sqlite,
@@ -49,6 +51,7 @@ def view_report(request, checksum, api=False):
     try:
         droidmon = {}
         apimon = {}
+        b64_strings = []
         if not is_md5(checksum):
             # We need this check since checksum is not validated
             # in REST API
@@ -64,6 +67,7 @@ def view_report(request, checksum, api=False):
                 api)
         app_dir = os.path.join(settings.UPLD_DIR, checksum + '/')
         download_dir = settings.DWD_DIR
+        tools_dir = settings.TOOLS_DIR
         if not is_file_exists(os.path.join(app_dir, 'logcat.txt')):
             msg = ('Dynamic Analysis report is not available '
                    'for this app. Perform Dynamic Analysis '
@@ -71,24 +75,32 @@ def view_report(request, checksum, api=False):
             return print_n_send_error_response(request, msg, api)
         fd_log = os.path.join(app_dir, 'mobsf_frida_out.txt')
         droidmon = droidmon_api_analysis(app_dir, package)
-        apimon = apimon_analysis(app_dir)
+        apimon, b64_strings = apimon_analysis(app_dir)
+        deps = dependency_analysis(package, app_dir)
         analysis_result = run_analysis(app_dir, checksum, package)
+        domains = analysis_result['domains']
+        trk = Trackers.Trackers(app_dir, tools_dir)
+        trackers = trk.get_runtime_trackers(domains, deps)
         generate_download(app_dir, checksum, download_dir, package)
         images = get_screenshots(checksum, download_dir)
         context = {'hash': checksum,
                    'emails': analysis_result['emails'],
                    'urls': analysis_result['urls'],
-                   'domains': analysis_result['domains'],
+                   'domains': domains,
                    'clipboard': analysis_result['clipboard'],
                    'xml': analysis_result['xml'],
                    'sqlite': analysis_result['sqlite'],
                    'others': analysis_result['other_files'],
+                   'tls_tests': analysis_result['tls_tests'],
                    'screenshots': images['screenshots'],
                    'activity_tester': images['activities'],
                    'exported_activity_tester': images['exported_activities'],
                    'droidmon': droidmon,
                    'apimon': apimon,
+                   'base64_strings': b64_strings,
+                   'trackers': trackers,
                    'frida_logs': is_file_exists(fd_log),
+                   'runtime_dependencies': deps,
                    'package': package,
                    'version': settings.MOBSF_VER,
                    'title': 'Dynamic Analysis'}
@@ -130,7 +142,10 @@ def view_file(request, api=False):
         if not is_safe_path(src, sfile) or is_path_traversal(fil):
             err = 'Path Traversal Attack Detected'
             return print_n_send_error_response(request, err, api)
-        with io.open(sfile, mode='r', encoding='ISO-8859-1') as flip:
+        with io.open(
+                sfile,  # lgtm [py/path-injection]
+                mode='r',
+                encoding='ISO-8859-1') as flip:
             dat = flip.read()
         if fil.endswith('.xml') and typ == 'xml':
             rtyp = 'xml'

@@ -19,10 +19,12 @@ from mobsf.MobSF.utils import (
     api_key,
     is_dir_exists,
     is_file_exists,
+    is_safe_path,
     print_n_send_error_response,
 )
 from mobsf.MobSF.views.helpers import FileType
 from mobsf.MobSF.views.scanning import Scanning
+from mobsf.MobSF.views.apk_downloader import apk_download
 from mobsf.StaticAnalyzer.models import (
     RecentScansDB,
     StaticAnalyzerAndroid,
@@ -136,6 +138,8 @@ class Upload(object):
             return scanning.scan_apk()
         elif self.file_type.is_xapk():
             return scanning.scan_xapk()
+        elif self.file_type.is_apks():
+            return scanning.scan_apks()
         elif self.file_type.is_zip():
             return scanning.scan_zip()
         elif self.file_type.is_ipa():
@@ -218,6 +222,25 @@ def recent_scans(request):
     return render(request, template, context)
 
 
+def download_apk(request):
+    """Download and APK by package name."""
+    package = request.POST['package']
+    # Package validated in apk_download()
+    context = {
+        'status': 'failed',
+        'description': 'Unable to download APK',
+    }
+    res = apk_download(package)
+    if res:
+        context = res
+        context['status'] = 'ok'
+        context['package'] = package
+    resp = HttpResponse(
+        json.dumps(context),
+        content_type='application/json; charset=utf-8')
+    return resp
+
+
 def search(request):
     """Search Scan by MD5 Route."""
     md5 = request.GET['md5']
@@ -235,19 +258,20 @@ def search(request):
 
 def download(request):
     """Download from mobsf.MobSF Route."""
-    msg = 'Error Downloading File '
     if request.method == 'GET':
+        root = settings.DWD_DIR
         allowed_exts = settings.ALLOWED_EXTENSIONS
         filename = request.path.replace('/download/', '', 1)
+        dwd_file = os.path.join(root, filename)
         # Security Checks
-        if '../' in filename:
+        if '../' in filename or not is_safe_path(root, dwd_file):
             msg = 'Path Traversal Attack Detected'
             return print_n_send_error_response(request, msg)
         ext = os.path.splitext(filename)[1]
         if ext in allowed_exts:
-            dwd_file = os.path.join(settings.DWD_DIR, filename)
             if os.path.isfile(dwd_file):
-                wrapper = FileWrapper(open(dwd_file, 'rb'))
+                wrapper = FileWrapper(
+                    open(dwd_file, 'rb'))  # lgtm [py/path-injection]
                 response = HttpResponse(
                     wrapper, content_type=allowed_exts[ext])
                 response['Content-Length'] = os.path.getsize(dwd_file)
